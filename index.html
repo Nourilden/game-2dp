@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crown Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #gameCanvas { background: white; display: block; margin: 0 auto; }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            justify-content: space-between;
+            width: 300px;
+        }
+        .control-set {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-set img {
+            margin: 5px;
+            cursor: pointer;
+            touch-action: none; /* Prevent default browser behavior on touch devices */
+        }
+        #controls-player1 {
+            transform: translate(304px, 123px);
+        }
+        #controls-player2 {
+            transform: translate(-304px, 7px);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Controls for visual aid and functionality -->
+    <div class="controls">
+        <div class="control-set" id="controls-player1">
+            <img src="https://img.icons8.com/ios-filled/50/000000/arrow.png" alt="up" style="transform: rotate(270deg);" 
+                 onmousedown="startMoving('up', 'player1')" onmouseup="stopMoving('player1')" 
+                 ontouchstart="startMoving('up', 'player1')" ontouchend="stopMoving('player1')">
+            <div>
+                <img src="https://img.icons8.com/ios-filled/50/000000/arrow.png" alt="left" style="transform: rotate(180deg);" 
+                     onmousedown="startMoving('left', 'player1')" onmouseup="stopMoving('player1')" 
+                     ontouchstart="startMoving('left', 'player1')" ontouchend="stopMoving('player1')">
+                <img src="https://img.icons8.com/ios-filled/50/000000/arrow.png" alt="down" style="transform: rotate(90deg);" 
+                     onmousedown="startMoving('down', 'player1')" onmouseup="stopMoving('player1')" 
+                     ontouchstart="startMoving('down', 'player1')" ontouchend="stopMoving('player1')">
+                <img src="https://img.icons8.com/ios-filled/50/000000/arrow.png" alt="right" 
+                     onmousedown="startMoving('right', 'player1')" onmouseup="stopMoving('player1')" 
+                     ontouchstart="startMoving('right', 'player1')" ontouchend="stopMoving('player1')">
+            </div>
+        </div>
+        <div class="control-set" id="controls-player2">
+            <img src="https://img.icons8.com/ios-filled/50/000000/w-key.png" alt="w" 
+                 onmousedown="startMoving('up', 'player2')" onmouseup="stopMoving('player2')" 
+                 ontouchstart="startMoving('up', 'player2')" ontouchend="stopMoving('player2')">
+            <div>
+                <img src="https://img.icons8.com/ios-filled/50/000000/a-key.png" alt="a" 
+                     onmousedown="startMoving('left', 'player2')" onmouseup="stopMoving('player2')" 
+                     ontouchstart="startMoving('left', 'player2')" ontouchend="stopMoving('player2')">
+                <img src="https://img.icons8.com/ios-filled/50/000000/s-key.png" alt="s" 
+                     onmousedown="startMoving('down', 'player2')" onmouseup="stopMoving('player2')" 
+                     ontouchstart="startMoving('down', 'player2')" ontouchend="stopMoving('player2')">
+                <img src="https://img.icons8.com/ios-filled/50/000000/d-key.png" alt="d" 
+                     onmousedown="startMoving('right', 'player2')" onmouseup="stopMoving('player2')" 
+                     ontouchstart="startMoving('right', 'player2')" ontouchend="stopMoving('player2')">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 800;
+        canvas.height = 400;
+
+        const player1 = { x: 700, y: 200, width: 40, height: 40, color: 'red', speed: 5, hasCrown: false, direction: null };
+        const player2 = { x: 100, y: 200, width: 40, height: 40, color: 'green', speed: 5, hasCrown: false, direction: null };
+        const crown = { x: 400, y: 200, radius: 20, color: 'yellow', visible: true };
+
+        let crownHolder = null;
+        let crownTimer = 0;
+        const winTime = 20 * 60;  // 20 seconds (assuming 60fps)
+
+        const keys = {};
+
+        function drawPlayer(player) {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        function drawCrown() {
+            if (crown.visible) {
+                ctx.fillStyle = crown.color;
+                ctx.beginPath();
+                ctx.arc(crown.x, crown.y, crown.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function checkCollision(player, object) {
+            return player.x < object.x + object.radius &&
+                   player.x + player.width > object.x - object.radius &&
+                   player.y < object.y + object.radius &&
+                   player.y + player.height > object.y - object.radius;
+        }
+
+        function checkPlayerCollision(player1, player2) {
+            return player1.x < player2.x + player2.width &&
+                   player1.x + player1.width > player2.x &&
+                   player1.y < player2.y + player2.height &&
+                   player1.y + player1.height > player2.y;
+        }
+
+        function movePlayer(player) {
+            if (player.direction === 'up' && player.y > 0) player.y -= player.speed;
+            if (player.direction === 'down' && player.y + player.height < canvas.height) player.y += player.speed;
+            if (player.direction === 'left' && player.x > 0) player.x -= player.speed;
+            if (player.direction === 'right' && player.x + player.width < canvas.width) player.x += player.speed;
+        }
+
+        function startMoving(direction, playerId) {
+            const player = playerId === 'player1' ? player1 : player2;
+            player.direction = direction;
+        }
+
+        function stopMoving(playerId) {
+            const player = playerId === 'player1' ? player1 : player2;
+            player.direction = null;
+        }
+
+        function update() {
+            // Move players based on touch/click controls
+            movePlayer(player1);
+            movePlayer(player2);
+
+            // Crown pickup and hiding the crown
+            if (crown.visible && checkCollision(player1, crown)) {
+                player1.hasCrown = true;
+                player1.color = 'blue';
+                crown.visible = false;
+                crownHolder = 'player1';
+            }
+
+            if (crown.visible && checkCollision(player2, crown)) {
+                player2.hasCrown = true;
+                player2.color = 'blue';
+                crown.visible = false;
+                crownHolder = 'player2';
+            }
+
+            // Crown transfer on player collision
+            if (checkPlayerCollision(player1, player2)) {
+                if (player1.hasCrown) {
+                    player1.hasCrown = false;
+                    player1.color = 'red';
+                    player2.hasCrown = true;
+                    player2.color = 'blue';
+                    crownHolder = 'player2';
+                } else if (player2.hasCrown) {
+                    player2.hasCrown = false;
+                    player2.color = 'green';
+                    player1.hasCrown = true;
+                    player1.color = 'blue';
+                    crownHolder = 'player1';
+                }
+            }
+
+            // Crown timer
+            if (player1.hasCrown || player2.hasCrown) {
+                crownTimer++;
+                if (crownTimer >= winTime) {
+                    alert(`${crownHolder} wins!`);
+                    resetGame();
+                }
+            }
+
+            // Rendering
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer(player1);
+            drawPlayer(player2);
+            drawCrown();
+
+            requestAnimationFrame(update);
+        }
+
+        function resetGame() {
+            player1.x = 700;
+            player1.y = 200;
+            player2.x = 100;
+            player2.y = 200;
+            player1.color = 'red';
+            player2.color = 'green';
+            player1.hasCrown = false;
+            player2.hasCrown = false;
+            crown.x = 400;
+            crown.y = 200;
+            crown.visible = true;
+            crownHolder = null;
+            crownTimer = 0;
+        }
+
+        window.addEventListener('load', () => {
+            update();
+        });
+    </script>
+</body>
+</html>
